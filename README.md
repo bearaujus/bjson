@@ -18,7 +18,7 @@ With BJSON, you don't need to declare models beforehand to unmarshal JSON data.
 To install bjson, run the following command:
 
 ```bash
-go get github.com/your-username/bjson
+go get github.com/bearaujus/bjson
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ go get github.com/your-username/bjson
 To use bjson, you need to import the package:
 
 ```go
-import "github.com/your-username/bjson"
+import "github.com/bearaujus/bjson"
 ```
 
 ## Creating a BJSON object
