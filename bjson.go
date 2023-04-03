@@ -1,3 +1,17 @@
+/*
+Package bjson provides a simple and flexible way to manipulate JSON data in Go.
+
+It allows users to perform various operations on JSON data, such as setting a root JSON element, escaping and unescaping JSON elements, and removing JSON elements.
+
+Features:
+
+  - Read JSON data from a file, string, or byte slice
+  - Unmarshal and Marshal JSON data
+  - Set a root JSON element for marshaling
+  - Escape and Unescape JSON elements
+  - Remove JSON elements from the object
+  - Write marshaled JSON data to a file
+*/
 package bjson
 
 import (
@@ -5,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -14,82 +29,99 @@ type bjson struct {
 	escapedElements map[string]bool
 }
 
+/*
+BJSON is an interface that provides methods for manipulating JSON data.
+
+Methods:
+
+  - UnmarshalJSON: Unmarshals the provided JSON data into the BJSON object.
+  - MarshalJSON: Marshals the BJSON object into a JSON string.
+  - MarshalJSONPretty: Marshals the BJSON object into a formatted JSON string.
+  - WriteMarshalJSON: Marshals the BJSON object into a JSON string and writes it to a local file.
+  - SetMarshalRootJSONElement: Sets the root JSON element for marshaling. The provided targetElement
+    is a slice of strings representing the JSON path to the root element.
+  - ResetMarshalRootJSONElement: Resets the root JSON element to nil, which causes the entire
+    BJSON object to be marshaled.
+  - RemoveElement: Removes the JSON element at the provided targetElement. The targetElement
+    is a slice of strings representing the JSON path to the element.
+    Returns an error if the element is not found.
+  - EscapeJSONElement: Escapes the JSON element at the provided targetElement by marshaling
+    it into a JSON string. The targetElement is a slice of strings representing the JSON path
+    to the element. Returns an error if the element is not found or is already escaped or not a
+    valid JSON object or array.
+  - UnescapeJSONElement: Unescapes the JSON element at the provided targetElement by unmarshaling
+    it from a JSON string into a JSON object or array. The targetElement is a slice of strings
+    representing the JSON path to the element. Returns an error if the element is not found or
+    is not escaped or is not a valid JSON object or array.
+*/
 type BJSON interface {
-	/*
-		UnmarshalJSON unmarshals the provided JSON data into the BJSON object.
-	*/
+	// UnmarshalJSON unmarshals the provided JSON data into the BJSON object.
 	UnmarshalJSON(data []byte) error
 
-	/*
-		MarshalJSON marshals the BJSON object into a JSON string.
-	*/
+	// MarshalJSON marshals the BJSON object into a JSON string.
 	MarshalJSON() ([]byte, error)
 
-	/*
-		MarshalJSONPretty marshals the BJSON object into a formatted JSON string.
-	*/
+	// MarshalJSONPretty marshals the BJSON object into a formatted JSON string.
 	MarshalJSONPretty() ([]byte, error)
 
-	/*
-		SetMarshalRootJSONElement sets the root JSON element for Marshaling. The provided targetElement
-		is a slice of strings representing the JSON path to the root element.
-	*/
+	// WriteMarshalJSON marshals the BJSON object into a JSON string and writes it to a local file.
+	WriteMarshalJSON(path string, isPretty bool) error
+
+	// SetMarshalRootJSONElement sets the root JSON element for marshaling. The provided targetElement
+	// is a slice of strings representing the JSON path to the root element.
 	SetMarshalRootJSONElement(targetElement []string) error
 
-	/*
-		ResetMarshalRootJSONElement resets the root JSON element to nil, which causes the entire
-		BJSON object to be marshaled.
-	*/
+	// ResetMarshalRootJSONElement resets the root JSON element to nil, which causes the entire
+	// BJSON object to be marshaled.
 	ResetMarshalRootJSONElement()
 
-	/*
-		RemoveElement removes the JSON element at the provided targetElement. The targetElement
-		is a slice of strings representing the JSON path to the element.
-		Returns an error if the element is not found.
-	*/
+	// RemoveElement removes the JSON element at the provided targetElement. The targetElement
+	// is a slice of strings representing the JSON path to the element.
+	// Returns an error if the element is not found.
 	RemoveElement(targetElement []string) error
 
-	/*
-		EscapeJSONElement escapes the JSON element at the provided targetElement by marshaling
-		it into a JSON string. The targetElement is a slice of strings representing the JSON path
-		to the element. Returns an error if the element is not found or is already escaped.
-	*/
+	// EscapeJSONElement escapes the JSON element at the provided targetElement by marshaling
+	// it into a JSON string. The targetElement is a slice of strings representing the JSON path
+	// to the element. Returns an error if the element is not found or is already escaped or not a
+	// valid JSON object or array.
 	EscapeJSONElement(targetElement []string) error
 
-	/*
-		UnescapeJSONElement unescapes the JSON element at the provided targetElement by unmarshaling
-		it from a JSON string into a JSON object or array. The targetElement is a slice of strings
-		representing the JSON path to the element. Returns an error if the element is not found or
-		is not escaped or is not a valid JSON object or array.
-	*/
+	// UnescapeJSONElement unescapes the JSON element at the provided targetElement by unmarshaling
+	// it from a JSON string into a JSON object or array. The targetElement is a slice of strings
+	// representing the JSON path to the element. Returns an error if the element is not found or
+	// is not escaped or is not a valid JSON object or array.
 	UnescapeJSONElement(targetElement []string) error
 }
 
-/*
-NewBJSON returns a new instance of BJSON, unmarshaling the provided byte slice of JSON data into it.
-
-Parameters:
-  - data: a byte slice containing valid JSON data.
-
-Returns:
-  - BJSON: a pointer to a new instance of BJSON, containing the unmarshalled JSON data.
-  - error: if an error occurred during the unmarshalling process, this will contain a descriptive error message.
-
-Example:
-
-	bjsonData := []byte(`{"foo": "bar", "num": 42, "nested": {"a": [1, 2, 3], "b": true}}`)
-	bj, err := NewBJSON(bjsonData)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// bj now contains the unmarshalled JSON data
-*/
-func NewBJSON(data []byte) (BJSON, error) {
+// NewBJSONFromByte creates a new BJSON object by unmarshaling the provided JSON data.
+// Returns an error if the data is not valid JSON.
+func NewBJSONFromByte(data []byte) (BJSON, error) {
 	bj := newBJSON()
 	if err := bj.UnmarshalJSON(data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unmarshaling JSON from byte data: %w", err)
 	}
 	return bj, nil
+}
+
+// NewBJSONFromString creates a new BJSON object by unmarshaling the provided JSON data in string form.
+// Returns an error if the data is not valid JSON.
+func NewBJSONFromString(data string) (BJSON, error) {
+	bj := newBJSON()
+	if err := bj.UnmarshalJSON([]byte(data)); err != nil {
+		return nil, fmt.Errorf("error unmarshaling JSON from string data: %w", err)
+	}
+	return bj, nil
+}
+
+// NewBJSONFromFile creates a new BJSON object by reading the JSON data from the specified file path.
+// Returns an error if the file cannot be read or the data is not valid JSON.
+func NewBJSONFromFile(path string) (BJSON, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file at path '%s': %w", path, err)
+	}
+
+	return NewBJSONFromByte(data)
 }
 
 func newBJSON() *bjson {
@@ -139,7 +171,25 @@ func (bj *bjson) MarshalJSONPretty() ([]byte, error) {
 	return buff.Bytes(), nil
 }
 
+func (bj *bjson) WriteMarshalJSON(path string, isPretty bool) error {
+	var data []byte
+	var err error
+	if isPretty {
+		data, err = bj.MarshalJSONPretty()
+	} else {
+		data, err = bj.MarshalJSON()
+	}
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
 func (bj *bjson) SetMarshalRootJSONElement(targetElement []string) error {
+	if targetElement == nil || len(targetElement) == 0 {
+		return fmt.Errorf("targetElement is nil or empty")
+	}
+
 	element, err := bj.getElement(targetElement)
 	if err != nil {
 		return err
@@ -163,7 +213,7 @@ func (bj *bjson) ResetMarshalRootJSONElement() {
 
 func (bj *bjson) RemoveElement(targetElement []string) error {
 	if targetElement == nil || len(targetElement) == 0 {
-		return errors.New("targetElement is nil or empty")
+		return fmt.Errorf("targetElement is nil or empty")
 	}
 
 	current := bj.value
@@ -189,13 +239,12 @@ func (bj *bjson) RemoveElement(targetElement []string) error {
 }
 
 func (bj *bjson) EscapeJSONElement(targetElement []string) error {
-	if isElementEquals(bj.rootJSONElement, targetElement) {
-		return fmt.Errorf("cannot escape the root JSON element: %v", strings.Join(targetElement, "."))
+	if targetElement == nil || len(targetElement) == 0 {
+		return fmt.Errorf("targetElement is nil or empty")
 	}
 
-	elementKey := strings.Join(targetElement, ".")
-	if bj.escapedElements[elementKey] {
-		return fmt.Errorf("element is already escaped: %v", elementKey)
+	if isElementEquals(bj.rootJSONElement, targetElement) {
+		return fmt.Errorf("cannot escape the root JSON element: %v", strings.Join(targetElement, "."))
 	}
 
 	element, err := bj.getElement(targetElement)
@@ -203,16 +252,32 @@ func (bj *bjson) EscapeJSONElement(targetElement []string) error {
 		return err
 	}
 
+	// Check if element is a valid JSON object or array
+	isValidJSON := false
+	if _, ok := element.(map[string]interface{}); ok {
+		isValidJSON = true
+	} else if _, ok := element.([]interface{}); ok {
+		isValidJSON = true
+	}
+
+	if !isValidJSON {
+		return fmt.Errorf("element is not a valid JSON object or array: %v", strings.Join(targetElement, "."))
+	}
+
 	escaped, err := json.Marshal(element)
 	if err != nil {
 		return fmt.Errorf("element is not a valid JSON: %v", strings.Join(targetElement, "."))
 	}
 
-	bj.escapedElements[elementKey] = true // Mark the element as escaped
+	bj.escapedElements[strings.Join(targetElement, ".")] = true // Mark the element as escaped
 	return bj.setElement(targetElement, string(escaped))
 }
 
 func (bj *bjson) UnescapeJSONElement(targetElement []string) error {
+	if targetElement == nil || len(targetElement) == 0 {
+		return fmt.Errorf("targetElement is nil or empty")
+	}
+
 	elementKey := strings.Join(targetElement, ".")
 	if !bj.escapedElements[elementKey] {
 		return fmt.Errorf("element is not escaped: %v", elementKey)
@@ -255,9 +320,7 @@ func (bj *bjson) populateEscapedElements(prefix string, m map[string]interface{}
 		if sub, ok := value.(map[string]interface{}); ok {
 			bj.populateEscapedElements(fullKey, sub)
 		} else if s, ok := value.(string); ok {
-			var v interface{}
-			err := json.Unmarshal([]byte(s), &v)
-			if err == nil {
+			if strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[") {
 				bj.escapedElements[fullKey] = true
 			}
 		}
@@ -293,8 +356,8 @@ func (bj *bjson) setElement(targetElement []string, value interface{}) error {
 	current := bj.value
 	for _, key := range targetElement[:len(targetElement)-1] {
 		elem, exists := current[key]
-		if !exists {
-			return fmt.Errorf("element not found: %v", strings.Join(targetElement, "."))
+		if !exists || elem == nil {
+			return fmt.Errorf("element not found or nil: %v", strings.Join(targetElement, "."))
 		}
 		if sub, ok := elem.(map[string]interface{}); ok {
 			current = sub
