@@ -4,15 +4,6 @@ BJSON is a Go package that provides a JSON library with additional features for 
 escape and unescape individual JSON elements and the ability to set a root JSON element for marshaling.
 With BJSON, you don't need to declare models beforehand to unmarshal JSON data.
 
-## Features:
-
-- Read JSON data from a file, string, or byte slice
-- Unmarshal and Marshal JSON data
-- Set a root JSON element for marshaling
-- Escape and Unescape JSON elements
-- Remove JSON elements from the object
-- Write marshaled JSON data to a file
-
 ## Installation
 
 To install bjson, run the following command:
