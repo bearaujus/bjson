@@ -1137,6 +1137,12 @@ func Test_jsonElement_EscapeElement(t *testing.T) {
 			args:   args{targets: []string{"bool"}},
 			want:   `{"bool":"true"}`,
 		},
+		{
+			name:   "success - escape empty string",
+			fields: fields{value: `""`},
+			args:   args{targets: []string{}},
+			want:   `""`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1212,6 +1218,12 @@ func Test_jsonElement_UnescapeElement(t *testing.T) {
 			fields: fields{value: `{"bool":"true"}`},
 			args:   args{targets: []string{"bool"}},
 			want:   `{"bool":true}`,
+		},
+		{
+			name:   "success - unescape empty string",
+			fields: fields{value: `""`},
+			args:   args{targets: []string{}},
+			want:   `""`,
 		},
 	}
 	for _, tt := range tests {

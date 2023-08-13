@@ -30,7 +30,7 @@ func (je *jsonElement) EscapeElement(targets ...string) error {
 	}
 
 	elementStr := element.String()
-	if elementStr == "" {
+	if elementStr == `""` {
 		return nil
 	}
 
@@ -58,7 +58,7 @@ func (je *jsonElement) UnescapeElement(targets ...string) error {
 	}
 
 	elementStr := element.String()
-	if elementStr == "" {
+	if elementStr == `""` {
 		return nil
 	}
 
