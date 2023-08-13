@@ -29,7 +29,12 @@ func (je *jsonElement) EscapeElement(targets ...string) error {
 		return err
 	}
 
-	quotedValue := strconv.Quote(element.String())
+	elementStr := element.String()
+	if elementStr == "" {
+		return nil
+	}
+
+	quotedValue := strconv.Quote(elementStr)
 	if err != nil {
 		return fmt.Errorf("element value is not quoted. value: %v", element)
 	}
@@ -52,7 +57,12 @@ func (je *jsonElement) UnescapeElement(targets ...string) error {
 		return err
 	}
 
-	unquotedValue, err := strconv.Unquote(element.String())
+	elementStr := element.String()
+	if elementStr == "" {
+		return nil
+	}
+
+	unquotedValue, err := strconv.Unquote(elementStr)
 	if err != nil {
 		return fmt.Errorf("element value is not quoted. value: %v", element)
 	}
