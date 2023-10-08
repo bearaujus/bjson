@@ -490,7 +490,7 @@ func Test_jsonElement_AddElement(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -696,7 +696,7 @@ func Test_jsonElement_GetElement(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -786,14 +786,14 @@ func Test_jsonElement_SetElement(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "fail - set element in invalid json array at root",
+			name:   "success - set element in json array at root",
 			fields: fields{value: `["str",0,[],{}]`},
 			args: args{
 				value:   "new",
 				targets: []string{},
 			},
-			want:    ``,
-			wantErr: true,
+			want:    `"new"`,
+			wantErr: false,
 		},
 
 		// - JSON ARRAY CHILD
@@ -912,24 +912,19 @@ func Test_jsonElement_SetElement(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			err = je.SetElement(tt.args.value, tt.args.targets...)
 			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
+				assert.Error(t, err)
+				return
 			}
 
-			var strGot string
-			if err == nil {
-				strGot = je.String()
-			}
-
-			assert.Equal(t, tt.want, strGot)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, je.String())
 		})
 	}
 }
@@ -1058,7 +1053,7 @@ func Test_jsonElement_RemoveElement(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1146,18 +1141,19 @@ func Test_jsonElement_EscapeElement(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			err = je.EscapeElement(tt.args.targets...)
 			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-				assert.Equal(t, tt.want, je.String())
+				assert.Error(t, err)
+				return
 			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, je.String())
 		})
 	}
 }
@@ -1225,21 +1221,29 @@ func Test_jsonElement_UnescapeElement(t *testing.T) {
 			args:   args{targets: []string{}},
 			want:   `""`,
 		},
+		{
+			name:    "success - from escaped root",
+			fields:  fields{value: `"{\"arr\":[1,2,3]}"`},
+			args:    args{},
+			want:    `{"arr":[1,2,3]}`,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			err = je.UnescapeElement(tt.args.targets...)
 			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-				assert.Equal(t, tt.want, je.String())
+				assert.Error(t, err)
+				return
 			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, je.String())
 		})
 	}
 }
@@ -1275,7 +1279,7 @@ func Test_jsonElement_Marshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1322,7 +1326,7 @@ func Test_jsonElement_MarshalWrite(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1365,7 +1369,7 @@ func Test_jsonElement_Copy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1402,7 +1406,7 @@ func Test_jsonElement_String(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1435,7 +1439,7 @@ func Test_jsonElement_Len(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewJSONElement(tt.fields.value)
+			je, err := NewBJSON(tt.fields.value)
 			if err != nil {
 				t.Fatal(err)
 			}

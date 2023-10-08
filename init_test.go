@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestNewJSONElement(t *testing.T) {
+func TestNewBJSON(t *testing.T) {
 	type args struct {
 		data interface{}
 	}
@@ -78,9 +78,45 @@ func TestNewJSONElement(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "success - from bjson obj itself",
-			args:    args{data: JSONElement(&jsonElement{value: `{"a":"str","b":123,"c":true,"d":[],"e":{}}`})},
+			name: "success - from bjson obj itself",
+			args: args{data: func() BJSON {
+				bj, err := NewBJSON(`{"a":"str","b":123,"c":true,"d":[],"e":{}}`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return bj
+			}()},
 			want:    `{"a":"str","b":123,"c":true,"d":[],"e":{}}`,
+			wantErr: false,
+		},
+		{
+			name:    "success - from empty string",
+			args:    args{data: `""`},
+			want:    `""`,
+			wantErr: false,
+		},
+		{
+			name:    "success - from empty json object",
+			args:    args{data: `{}`},
+			want:    `{}`,
+			wantErr: false,
+		},
+		{
+			name:    "success - from empty json array",
+			args:    args{data: `[]`},
+			want:    `[]`,
+			wantErr: false,
+		},
+		{
+			name:    "success - from boolean",
+			args:    args{data: `true`},
+			want:    `true`,
+			wantErr: false,
+		},
+		{
+			name:    "success - from number",
+			args:    args{data: `13.5`},
+			want:    `13.5`,
 			wantErr: false,
 		},
 		{
@@ -89,22 +125,24 @@ func TestNewJSONElement(t *testing.T) {
 			want:    "",
 			wantErr: true,
 		},
+		{
+			name:    "success - from escaped json",
+			args:    args{data: `"{\"arr\":[1,2,3]}"`},
+			want:    `"{\"arr\":[1,2,3]}"`,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewJSONElement(tt.args.data)
+			got, err := NewBJSON(tt.args.data)
 			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
+				assert.Error(t, err)
+				assert.Nil(t, got)
+				return
 			}
 
-			var strGot string
-			if err == nil {
-				strGot = got.String()
-			}
-
-			assert.Equal(t, tt.want, strGot)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got.String())
 		})
 	}
 }
@@ -154,7 +192,7 @@ func TestNewJSONElementFromFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewJSONElementFromFile(tt.args.path)
+			got, err := NewBJSONFromFile(tt.args.path)
 			if tt.wantErr {
 				assert.NotNil(t, err)
 			} else {

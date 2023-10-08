@@ -7,23 +7,23 @@ import (
 	"strconv"
 )
 
-func (je *jsonElement) AddElement(value interface{}, targets ...string) (err error) {
+func (je *bjson) AddElement(value interface{}, targets ...string) (err error) {
 	return je.updateElement(updateOptionAdd, value, targets...)
 }
 
-func (je *jsonElement) GetElement(targets ...string) (JSONElement, error) {
+func (je *bjson) GetElement(targets ...string) (BJSON, error) {
 	return je.getElement(targets...)
 }
 
-func (je *jsonElement) SetElement(value interface{}, targets ...string) (err error) {
+func (je *bjson) SetElement(value interface{}, targets ...string) (err error) {
 	return je.updateElement(updateOptionSet, value, targets...)
 }
 
-func (je *jsonElement) RemoveElement(targets ...string) (err error) {
+func (je *bjson) RemoveElement(targets ...string) (err error) {
 	return je.updateElement(updateOptionRemove, nil, targets...)
 }
 
-func (je *jsonElement) EscapeElement(targets ...string) error {
+func (je *bjson) EscapeElement(targets ...string) error {
 	element, err := je.getElement(targets...)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (je *jsonElement) EscapeElement(targets ...string) error {
 	return nil
 }
 
-func (je *jsonElement) UnescapeElement(targets ...string) error {
+func (je *bjson) UnescapeElement(targets ...string) error {
 	element, err := je.getElement(targets...)
 	if err != nil {
 		return err
@@ -68,32 +68,33 @@ func (je *jsonElement) UnescapeElement(targets ...string) error {
 	}
 
 	var nVal interface{}
-	if err := json.Unmarshal([]byte(unquotedValue), &nVal); err != nil {
+	if err = json.Unmarshal([]byte(unquotedValue), &nVal); err != nil {
 		return err
 	}
 
-	if err := je.SetElement(nVal, targets...); err != nil {
+	if err = je.SetElement(nVal, targets...); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (je *jsonElement) Copy() JSONElement {
+func (je *bjson) Copy() BJSON {
 	nVal, _ := deepCopy(je.value)
-	return &jsonElement{value: nVal}
+	return &bjson{value: nVal}
 }
 
-func (je *jsonElement) String() string {
-	return string(je.Value())
+func (je *bjson) String() string {
+	ret, _ := je.Marshal(false)
+	return string(ret)
 }
 
-func (je *jsonElement) Value() []byte {
+func (je *bjson) Value() []byte {
 	data, _ := json.Marshal(je.value)
 	return data
 }
 
-func (je *jsonElement) Len() int {
+func (je *bjson) Len() int {
 	switch valObj := je.value.(type) {
 	case map[string]interface{}:
 		return len(valObj)
@@ -106,7 +107,7 @@ func (je *jsonElement) Len() int {
 	return 0
 }
 
-func (je *jsonElement) Marshal(isPretty bool, targets ...string) ([]byte, error) {
+func (je *bjson) Marshal(isPretty bool, targets ...string) ([]byte, error) {
 	sel, err := je.getElement(targets...)
 	if err != nil {
 		return nil, err
@@ -119,7 +120,7 @@ func (je *jsonElement) Marshal(isPretty bool, targets ...string) ([]byte, error)
 	return json.Marshal(sel.value)
 }
 
-func (je *jsonElement) MarshalWrite(path string, isPretty bool, targets ...string) error {
+func (je *bjson) MarshalWrite(path string, isPretty bool, targets ...string) error {
 	data, err := je.Marshal(isPretty)
 	if err != nil {
 		return err
@@ -142,7 +143,7 @@ func (path JSONPath) AppendIndex(index int) JSONPath {
 	return append(path, strconv.Itoa(index))
 }
 
-func (je *jsonElement) getElement(targets ...string) (*jsonElement, error) {
+func (je *bjson) getElement(targets ...string) (*bjson, error) {
 	var (
 		selector = je.value
 		path     = JSONPath{}
@@ -166,10 +167,10 @@ func (je *jsonElement) getElement(targets ...string) (*jsonElement, error) {
 		}
 	}
 
-	return &jsonElement{value: selector}, nil
+	return &bjson{value: selector}, nil
 }
 
-func (je *jsonElement) getElementFromMap(obj map[string]interface{}, target, location string) (interface{}, error) {
+func (je *bjson) getElementFromMap(obj map[string]interface{}, target, location string) (interface{}, error) {
 	selector, ok := obj[target]
 	if !ok {
 		return nil, fmt.Errorf("element %v is not found", location)
@@ -177,7 +178,7 @@ func (je *jsonElement) getElementFromMap(obj map[string]interface{}, target, loc
 	return selector, nil
 }
 
-func (je *jsonElement) getElementFromArray(arr []interface{}, target, location string) (interface{}, error) {
+func (je *bjson) getElementFromArray(arr []interface{}, target, location string) (interface{}, error) {
 	idx, err := strconv.Atoi(target)
 	if err != nil || idx < 0 || idx >= len(arr) {
 		return nil, fmt.Errorf("element %v is not valid index for JSON array", location)
@@ -193,7 +194,7 @@ const (
 	updateOptionRemove updateOption = iota
 )
 
-func (je *jsonElement) updateElement(option updateOption, value interface{}, targets ...string) error {
+func (je *bjson) updateElement(option updateOption, value interface{}, targets ...string) error {
 	if value != nil {
 		nValue, err := deepCopy(value)
 		if err != nil {
@@ -218,16 +219,21 @@ func (je *jsonElement) updateElement(option updateOption, value interface{}, tar
 	return nil
 }
 
-func (je *jsonElement) updateTopLevelElement(option updateOption, value interface{}) error {
+func (je *bjson) updateTopLevelElement(option updateOption, value interface{}) error {
 	if parentObj, ok := je.value.([]interface{}); ok && option == updateOptionAdd {
 		je.value = append(parentObj, value)
+		return nil
+	}
+
+	if option == updateOptionSet {
+		je.value = value
 		return nil
 	}
 
 	return fmt.Errorf("invalid operation for %T", je.value)
 }
 
-func (je *jsonElement) recursiveUpdateElement(option updateOption, parent interface{}, value interface{}, currentTarget string, location string, remainingTargets ...string) (interface{}, error) {
+func (je *bjson) recursiveUpdateElement(option updateOption, parent interface{}, value interface{}, currentTarget string, location string, remainingTargets ...string) (interface{}, error) {
 	isTail := len(remainingTargets) == 1
 	switch parentObj := parent.(type) {
 	case map[string]interface{}:
@@ -278,7 +284,7 @@ func (je *jsonElement) recursiveUpdateElement(option updateOption, parent interf
 	}
 }
 
-func (je *jsonElement) updateTailMapElement(option updateOption, parentObj map[string]interface{}, value interface{}, currentTarget string, location string, child interface{}, isExist bool) (interface{}, error) {
+func (je *bjson) updateTailMapElement(option updateOption, parentObj map[string]interface{}, value interface{}, currentTarget string, location string, child interface{}, isExist bool) (interface{}, error) {
 	if arr, ok := child.([]interface{}); (option == updateOptionAdd || option == updateOptionSet) && ok {
 		if _, ok := parentObj[currentTarget]; ok && option == updateOptionAdd {
 			parentObj[currentTarget] = append(arr, value)
@@ -299,7 +305,7 @@ func (je *jsonElement) updateTailMapElement(option updateOption, parentObj map[s
 	return parentObj, nil
 }
 
-func (je *jsonElement) updateTailArrayElement(option updateOption, parentObj []interface{}, value interface{}, idx int, location string) (interface{}, error) {
+func (je *bjson) updateTailArrayElement(option updateOption, parentObj []interface{}, value interface{}, idx int, location string) (interface{}, error) {
 	child := parentObj[idx]
 	if arr, ok := child.([]interface{}); option == updateOptionAdd && ok {
 		switch option {
@@ -331,7 +337,7 @@ func deepCopy(value interface{}) (interface{}, error) {
 		}
 		return ret, nil
 
-	case *jsonElement:
+	case *bjson:
 		value = v.value
 	}
 
@@ -340,7 +346,7 @@ func deepCopy(value interface{}) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := json.Unmarshal(data, &ret); err != nil {
+	if err = json.Unmarshal(data, &ret); err != nil {
 		return nil, err
 	}
 

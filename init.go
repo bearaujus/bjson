@@ -5,13 +5,13 @@ import (
 	"os"
 )
 
-type jsonElement struct {
+type bjson struct {
 	value interface{}
 }
 
-type JSONElement interface {
+type BJSON interface {
 	AddElement(value interface{}, targets ...string) error
-	GetElement(targets ...string) (JSONElement, error)
+	GetElement(targets ...string) (BJSON, error)
 	SetElement(value interface{}, targets ...string) error
 	RemoveElement(targets ...string) error
 
@@ -19,18 +19,16 @@ type JSONElement interface {
 	MarshalWrite(path string, isPretty bool, targets ...string) error
 	EscapeElement(targets ...string) error
 	UnescapeElement(targets ...string) error
-	Copy() JSONElement
+	Copy() BJSON
 
 	String() string
 	Len() int
 }
 
-func NewJSONElement(data interface{}) (JSONElement, error) {
+func NewBJSON(data interface{}) (BJSON, error) {
 	switch d := data.(type) {
 	case string:
 		data = []byte(d)
-	case *jsonElement:
-		return NewJSONElement(d.value)
 	}
 
 	val, err := deepCopy(data)
@@ -38,14 +36,14 @@ func NewJSONElement(data interface{}) (JSONElement, error) {
 		return nil, err
 	}
 
-	return &jsonElement{value: val}, nil
+	return &bjson{value: val}, nil
 }
 
-func NewJSONElementFromFile(path string) (JSONElement, error) {
+func NewBJSONFromFile(path string) (BJSON, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file at path '%s': %w", path, err)
 	}
 
-	return NewJSONElement(data)
+	return NewBJSON(data)
 }
