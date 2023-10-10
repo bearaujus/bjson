@@ -1,19 +1,52 @@
 package bjson
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path"
 	"testing"
 )
 
-func Test_jsonElement_AddElement(t *testing.T) {
+func Test_bjson_AddElement(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
 	type args struct {
 		value   interface{}
 		targets []string
+	}
+	types := []struct {
+		name  string
+		value interface{}
+		want  string
+	}{
+		{
+			name:  "string",
+			value: "test",
+			want:  `"test"`,
+		},
+		{
+			name:  "number",
+			value: 23,
+			want:  `23`,
+		},
+		{
+			name:  "boolean",
+			value: true,
+			want:  `true`,
+		},
+		{
+			name:  "json array",
+			value: []interface{}{"json_array"},
+			want:  `["json_array"]`,
+		},
+		{
+			name:  "json object",
+			value: map[string]interface{}{"json_object": "value"},
+			want:  `{"json_object":"value"}`,
+		},
 	}
 	tests := []struct {
 		name    string
@@ -22,497 +55,212 @@ func Test_jsonElement_AddElement(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		// STRING
 		{
-			name:   "fail - add to string",
+			name:   "fail - add %v to string",
 			fields: fields{value: `"test"`},
 			args: args{
-				value:   "test",
 				targets: []string{},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to string at json object",
-			fields: fields{value: `{"v1":"test"}`},
+			name:   "fail - add %v to number",
+			fields: fields{value: `123.3`},
 			args: args{
-				value:   "test",
-				targets: []string{"v1"},
+				targets: []string{},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to string at json array",
-			fields: fields{value: `["test"]`},
+			name:   "fail - add %v to boolean",
+			fields: fields{value: `true`},
 			args: args{
-				value:   "asd",
+				targets: []string{},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - add %v to null",
+			fields: fields{value: `null`},
+			args: args{
+				targets: []string{},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - add %v to root json object",
+			fields: fields{value: `{}`},
+			args: args{
+				targets: []string{},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - add %v to root json object inside json array",
+			fields: fields{value: `[{}]`},
+			args: args{
 				targets: []string{"0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
-
-		// NUMBER
 		{
-			name:   "fail - add to number",
-			fields: fields{value: `10`},
+			name:   "fail - add %v to root json object inside json array without an existing index",
+			fields: fields{value: `[{}]`},
 			args: args{
-				value:   "test",
-				targets: []string{},
+				targets: []string{"1"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to number at json object",
-			fields: fields{value: `{"v1":10}`},
+			name:   "success - add %v to json object",
+			fields: fields{value: `{}`},
 			args: args{
-				value:   "test",
+				targets: []string{"v1"},
+			},
+			want:    `{"v1":%v}`,
+			wantErr: false,
+		},
+		{
+			name:   "success - add %v to json object inside json array",
+			fields: fields{value: `[{}]`},
+			args: args{
+				targets: []string{"0", "v1"},
+			},
+			want:    `[{"v1":%v}]`,
+			wantErr: false,
+		},
+		{
+			name:   "fail - add %v to json object inside json array without an existing index",
+			fields: fields{value: `[{}]`},
+			args: args{
+				targets: []string{"1", "v1"},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - add %v to existing json object",
+			fields: fields{value: `{"v1":"val"}`},
+			args: args{
 				targets: []string{"v1"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to number at json array",
-			fields: fields{value: `[10]`},
+			name:   "fail - add %v to existing json object inside json array",
+			fields: fields{value: `[{"v1":"val"}]`},
 			args: args{
-				value:   "asd",
+				targets: []string{"0", "v1"},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "success - add %v to root json array",
+			fields: fields{value: `["val"]`},
+			args: args{
+				targets: []string{},
+			},
+			want:    `["val",%v]`,
+			wantErr: false,
+		},
+		{
+			name:   "success - add %v to root json array inside json object",
+			fields: fields{value: `{"test":[]}`},
+			args: args{
+				targets: []string{"test"},
+			},
+			want:    `{"test":[%v]}`,
+			wantErr: false,
+		},
+		{
+			name:   "fail - add %v to json array",
+			fields: fields{value: `[]`},
+			args: args{
 				targets: []string{"0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
-
-		// JSON OBJECT
-		// - JSON OBJECT ROOT
 		{
-			name:   "success - add string to json object at root",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
+			name:   "fail - add %v to json array with invalid index",
+			fields: fields{value: `["val"]`},
 			args: args{
-				value:   "test",
-				targets: []string{"z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{},"z":"test"}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add number to json object at root",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   10,
-				targets: []string{"z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{},"z":10}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json object to json object at root",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   map[string]interface{}{"z": "test"},
-				targets: []string{"z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{},"z":{"z":"test"}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json arr to json object at root",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   []interface{}{"test"},
-				targets: []string{"z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{},"z":["test"]}`,
-			wantErr: false,
-		},
-		{
-			name:   "fail - add to existing json object at root",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v1"},
+				targets: []string{"invalid"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to invalid json object at root",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
+			name:   "fail - add %v to json array inside json object",
+			fields: fields{value: `{"test":[]}`},
 			args: args{
-				value:   "test",
-				targets: []string{},
+				targets: []string{"test", "0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to invalid json object at root child",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
+			name:   "fail - add %v to json array inside json object without an existing index",
+			fields: fields{value: `{"test":[]}`},
 			args: args{
-				value:   "test",
-				targets: []string{"z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-
-		// - JSON OBJECT CHILD
-		{
-			name:   "success - add string to json object at child json object",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v4", "z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{"z":"test"}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add number to json object at child json object",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   10,
-				targets: []string{"v4", "z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{"z":10}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json object to json object at child json object",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   map[string]interface{}{"z": "test"},
-				targets: []string{"v4", "z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{"z":{"z":"test"}}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json arr to json object at child json object",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   []interface{}{"test"},
-				targets: []string{"v4", "z"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[],"v4":{"z":["test"]}}`,
-			wantErr: false,
-		},
-		{
-			name:   "fail - add to existing json object at child json object",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{"z":"test"}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v4", "z"},
+				targets: []string{"test_2", "0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to invalid json object at child json object",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{"z":"test"}}`},
+			name:   "fail - add %v to existing json array",
+			fields: fields{value: `["val"]`},
 			args: args{
-				value:   "test",
-				targets: []string{"v4"},
+				targets: []string{"0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "fail - add to invalid json object at child json object child",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{"z":"test"}}`},
+			name:   "fail - add %v to existing json array inside json object",
+			fields: fields{value: `{"test":["val"]}`},
 			args: args{
-				value:   "test",
-				targets: []string{"v4", "z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-
-		{
-			name:   "success - add string to json object at child json array",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v3"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":["test"],"v4":{}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add number to json object at child json array",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   10,
-				targets: []string{"v3"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[10],"v4":{}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json object to json object at child json array",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   map[string]interface{}{"z": "test"},
-				targets: []string{"v3"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[{"z":"test"}],"v4":{}}`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json arr to json object at child json array",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   []interface{}{"test"},
-				targets: []string{"v3"},
-			},
-			want:    `{"v1":"str","v2":0,"v3":[["test"]],"v4":{}}`,
-			wantErr: false,
-		},
-		{
-			name:   "fail - add to existing json object at child json array",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[{"z":"test"}],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v3", "0", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "fail - add to invalid json object at child json array",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[{"z":"test"}],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v3", "0", "z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "fail - add to invalid json object at child json array with index outbound",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[{"z":"test"}],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v3", "99", "z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "fail - add to invalid json object at child json array with invalid index",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[{"z":"test"}],"v4":{}}`},
-			args: args{
-				value:   "test",
-				targets: []string{"v3", "invalid", "z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-
-		// JSON ARRAY
-		// - JSON ARRAY ROOT
-		{
-			name:   "success - add string to json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "test",
-				targets: []string{},
-			},
-			want:    `["str",0,[],{},"test"]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add number to json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   10,
-				targets: []string{},
-			},
-			want:    `["str",0,[],{},10]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json object to json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   map[string]interface{}{"z": "test"},
-				targets: []string{},
-			},
-			want:    `["str",0,[],{},{"z":"test"}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json arr to json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   []interface{}{"test"},
-				targets: []string{},
-			},
-			want:    `["str",0,[],{},["test"]]`,
-			wantErr: false,
-		},
-
-		// - JSON ARRAY CHILD
-		{
-			name:   "success - add string to json array at child json object",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"3", "z"},
-			},
-			want:    `["str",0,[],{"z":"test"}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add number to json array at child json object",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   10,
-				targets: []string{"3", "z"},
-			},
-			want:    `["str",0,[],{"z":10}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json object to array object at child json object",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   map[string]interface{}{"z": "test"},
-				targets: []string{"3", "z"},
-			},
-			want:    `["str",0,[],{"z":{"z":"test"}}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json arr to json array at child json object",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   []interface{}{"test"},
-				targets: []string{"3", "z"},
-			},
-			want:    `["str",0,[],{"z":["test"]}]`,
-			wantErr: false,
-		},
-		{
-			name:   "fail - add to existing json array at child json object",
-			fields: fields{value: `["str",0,[],{"z":"test"}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"3", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "fail - add to invalid json array at child json object",
-			fields: fields{value: `["str",0,[],{"z":"test"}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"3", "z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-
-		{
-			name:   "success - add string to json array at child json object",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"2"},
-			},
-			want:    `["str",0,["test"],{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add number to json array at child json array",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   10,
-				targets: []string{"2"},
-			},
-			want:    `["str",0,[10],{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json object to json array at child json array",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   map[string]interface{}{"z": "test"},
-				targets: []string{"2"},
-			},
-			want:    `["str",0,[{"z":"test"}],{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - add json arr to json array at child json array",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   []interface{}{"test"},
-				targets: []string{"2"},
-			},
-			want:    `["str",0,[["test"]],{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "fail - add to existing json array at child json array",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"2", "0", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "fail - add to invalid json array at child json array with index outbound",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"2", "99", "z", "z"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "fail - add to invalid json array at child json array with invalid index",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "test",
-				targets: []string{"2", "invalid", "z", "z"},
+				targets: []string{"test", "0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewBJSON(tt.fields.value)
-			if err != nil {
-				t.Fatal(err)
-			}
+	for _, ty := range types {
+		for _, tt := range tests {
+			tt.name = fmt.Sprintf(tt.name, ty.name)
+			tt.args.value = ty.value
+			tt.want = fmt.Sprintf(tt.want, ty.want)
+			t.Run(tt.name, func(t *testing.T) {
+				je, err := NewBJSON(tt.fields.value)
+				if err != nil {
+					assert.FailNow(t, err.Error())
+				}
 
-			err = je.AddElement(tt.args.value, tt.args.targets...)
-			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+				err = je.AddElement(tt.args.value, tt.args.targets...)
+				if tt.wantErr {
+					assert.Error(t, err)
+					return
+				}
 
-			var strGot string
-			if err == nil {
-				strGot = je.String()
-			}
-
-			assert.Equal(t, tt.want, strGot)
-		})
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, je.String())
+			})
+		}
 	}
 }
 
-func Test_jsonElement_GetElement(t *testing.T) {
+func Test_bjson_GetElement(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
@@ -693,6 +441,20 @@ func Test_jsonElement_GetElement(t *testing.T) {
 			want:    `2`,
 			wantErr: false,
 		},
+		{
+			name:    "fail - invalid json array index",
+			fields:  fields{value: "[2, 3, 4]"},
+			args:    args{targets: []string{"5"}},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "fail - invalid json array index 2",
+			fields:  fields{value: "[2, 3, 4]"},
+			args:    args{targets: []string{"test"}},
+			want:    "",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -703,28 +465,55 @@ func Test_jsonElement_GetElement(t *testing.T) {
 
 			got, err := je.GetElement(tt.args.targets...)
 			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
+				assert.Error(t, err)
+				assert.Nil(t, got)
+				return
 			}
 
-			var strGot string
-			if err == nil {
-				strGot = got.String()
-			}
-
-			assert.Equal(t, tt.want, strGot)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got.String())
 		})
 	}
 }
 
-func Test_jsonElement_SetElement(t *testing.T) {
+func Test_bjson_SetElement(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
 	type args struct {
 		value   interface{}
 		targets []string
+	}
+	types := []struct {
+		name  string
+		value interface{}
+		want  string
+	}{
+		{
+			name:  "string",
+			value: "test",
+			want:  `"test"`,
+		},
+		{
+			name:  "number",
+			value: 23,
+			want:  `23`,
+		},
+		{
+			name:  "boolean",
+			value: true,
+			want:  `true`,
+		},
+		{
+			name:  "json array",
+			value: []interface{}{"json_array"},
+			want:  `["json_array"]`,
+		},
+		{
+			name:  "json object",
+			value: map[string]interface{}{"json_object": "value"},
+			want:  `{"json_object":"value"}`,
+		},
 	}
 	tests := []struct {
 		name    string
@@ -733,203 +522,213 @@ func Test_jsonElement_SetElement(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		// JSON ARRAY SET ELEMENT
-		// - JSON ARRAY ROOT
 		{
-			name:   "success - set string in json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
+			name:   "success - set %v to string",
+			fields: fields{value: `"test"`},
 			args: args{
-				value:   "new",
-				targets: []string{"0"},
-			},
-			want:    `["new",0,[],{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - set number in json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   100,
-				targets: []string{"1"},
-			},
-			want:    `["str",100,[],{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - set json object in json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   map[string]interface{}{"newKey": "newValue"},
-				targets: []string{"2"},
-			},
-			want:    `["str",0,{"newKey":"newValue"},{}]`,
-			wantErr: false,
-		},
-		{
-			name:   "success - set json array in json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   []interface{}{"newElement"},
-				targets: []string{"3"},
-			},
-			want:    `["str",0,[],["newElement"]]`,
-			wantErr: false,
-		},
-		{
-			name:   "fail - set element in non-existing json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "new",
-				targets: []string{"99"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "success - set element in json array at root",
-			fields: fields{value: `["str",0,[],{}]`},
-			args: args{
-				value:   "new",
 				targets: []string{},
 			},
-			want:    `"new"`,
+			want:    `%v`,
 			wantErr: false,
 		},
-
-		// - JSON ARRAY CHILD
 		{
-			name:   "success - set string in json array at child json object",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "success - set %v to number",
+			fields: fields{value: `123.3`},
 			args: args{
-				value:   "new",
-				targets: []string{"parent", "0"},
+				targets: []string{},
 			},
-			want:    `{"parent":["new",0,[],{}]}`,
+			want:    `%v`,
 			wantErr: false,
 		},
 		{
-			name:   "success - set number in json array at child json object",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "success - set %v to boolean",
+			fields: fields{value: `true`},
 			args: args{
-				value:   100,
-				targets: []string{"parent", "1"},
+				targets: []string{},
 			},
-			want:    `{"parent":["str",100,[],{}]}`,
+			want:    `%v`,
 			wantErr: false,
 		},
 		{
-			name:   "success - set json object in json array at child json object",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "success - set %v to null",
+			fields: fields{value: `null`},
 			args: args{
-				value:   map[string]interface{}{"newKey": "newValue"},
-				targets: []string{"parent", "2"},
+				targets: []string{},
 			},
-			want:    `{"parent":["str",0,{"newKey":"newValue"},{}]}`,
+			want:    `%v`,
 			wantErr: false,
 		},
 		{
-			name:   "success - set json array in json array at child json object",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "success - set %v to root json object",
+			fields: fields{value: `{}`},
 			args: args{
-				value:   []interface{}{"newElement"},
-				targets: []string{"parent", "3"},
+				targets: []string{},
 			},
-			want:    `{"parent":["str",0,[],["newElement"]]}`,
+			want:    `%v`,
 			wantErr: false,
 		},
 		{
-			name:   "fail - set element in non-existing json array at child json object",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "success - set %v to root json object inside json array",
+			fields: fields{value: `[{}]`},
 			args: args{
-				value:   "new",
-				targets: []string{"parent", "99"},
+				targets: []string{"0"},
+			},
+			want:    `[%v]`,
+			wantErr: false,
+		},
+		{
+			name:   "fail - set %v to root json object inside json array without an existing index",
+			fields: fields{value: `[{}]`},
+			args: args{
+				targets: []string{"1"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "success - set element in json object (not array) at child json object",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "fail - set %v to json object",
+			fields: fields{value: `{}`},
 			args: args{
-				value:   "new",
-				targets: []string{"parent"},
+				targets: []string{"v1"},
 			},
-			want:    `{"parent":"new"}`,
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - set %v to json object inside json array",
+			fields: fields{value: `[{}]`},
+			args: args{
+				targets: []string{"0", "v1"},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - set %v to json object inside json array without an existing index",
+			fields: fields{value: `[{}]`},
+			args: args{
+				targets: []string{"1", "v1"},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "success - set %v to existing json object",
+			fields: fields{value: `{"v1":"val"}`},
+			args: args{
+				targets: []string{"v1"},
+			},
+			want:    `{"v1":%v}`,
 			wantErr: false,
 		},
 		{
-			name:   "fail - set element in invalid json array at child json object child",
-			fields: fields{value: `{"parent":["str",0,[],{}]}`},
+			name:   "success - set %v to existing json object inside json array",
+			fields: fields{value: `[{"v1":"val"}]`},
 			args: args{
-				value:   "new",
-				targets: []string{"parent", "2", "invalid"},
+				targets: []string{"0", "v1"},
 			},
-			want:    ``,
-			wantErr: true,
-		},
-
-		// Edge Cases
-		{
-			name:   "fail - set to invalid target",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   "new",
-				targets: []string{"v4", "z", "nonExistingKey"},
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name:   "success - set element to invalid type",
-			fields: fields{value: `{"v1":"str","v2":0,"v3":[],"v4":{}}`},
-			args: args{
-				value:   map[string]interface{}{"newKey": "newValue"},
-				targets: []string{"v2"},
-			},
-			want:    `{"v1":"str","v2":{"newKey":"newValue"},"v3":[],"v4":{}}`,
+			want:    `[{"v1":%v}]`,
 			wantErr: false,
 		},
 		{
-			name:   "fail - set element to invalid index",
-			fields: fields{value: `["str",0,[],{}]`},
+			name:   "success - set %v to root json array",
+			fields: fields{value: `["val"]`},
 			args: args{
-				value:   "new",
-				targets: []string{"5"},
+				targets: []string{},
+			},
+			want:    `%v`,
+			wantErr: false,
+		},
+		{
+			name:   "success - set %v to root json array inside json object",
+			fields: fields{value: `{"test":[]}`},
+			args: args{
+				targets: []string{"test"},
+			},
+			want:    `{"test":%v}`,
+			wantErr: false,
+		},
+		{
+			name:   "fail - set %v to json array",
+			fields: fields{value: `[]`},
+			args: args{
+				targets: []string{"0"},
 			},
 			want:    ``,
 			wantErr: true,
 		},
 		{
-			name:   "success - set string in nested json array at root",
-			fields: fields{value: `{"parent":{"array":["value1","value2"]}}`},
+			name:   "fail - set %v to json array with invalid index",
+			fields: fields{value: `["val"]`},
 			args: args{
-				value:   "newStringValue",
-				targets: []string{"parent", "array", "0"},
+				targets: []string{"invalid"},
 			},
-			want:    `{"parent":{"array":["newStringValue","value2"]}}`,
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - set %v to json array inside json object",
+			fields: fields{value: `{"test":[]}`},
+			args: args{
+				targets: []string{"test", "0"},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "fail - set %v to json array inside json object without an existing index",
+			fields: fields{value: `{"test":[]}`},
+			args: args{
+				targets: []string{"test_2", "0"},
+			},
+			want:    ``,
+			wantErr: true,
+		},
+		{
+			name:   "success - set %v to existing json array",
+			fields: fields{value: `["val"]`},
+			args: args{
+				targets: []string{"0"},
+			},
+			want:    `[%v]`,
+			wantErr: false,
+		},
+		{
+			name:   "success - set %v to existing json array inside json object",
+			fields: fields{value: `{"test":["val"]}`},
+			args: args{
+				targets: []string{"test", "0"},
+			},
+			want:    `{"test":[%v]}`,
 			wantErr: false,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewBJSON(tt.fields.value)
-			if err != nil {
-				t.Fatal(err)
-			}
 
-			err = je.SetElement(tt.args.value, tt.args.targets...)
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
+	for _, ty := range types {
+		for _, tt := range tests {
+			tt.name = fmt.Sprintf(tt.name, ty.name)
+			tt.args.value = ty.value
+			tt.want = fmt.Sprintf(tt.want, ty.want)
+			t.Run(tt.name, func(t *testing.T) {
+				je, err := NewBJSON(tt.fields.value)
+				if err != nil {
+					assert.FailNow(t, err.Error())
+				}
 
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, je.String())
-		})
+				err = je.SetElement(tt.args.value, tt.args.targets...)
+				if tt.wantErr {
+					assert.Error(t, err)
+					return
+				}
+
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, je.String())
+			})
+		}
 	}
 }
 
-func Test_jsonElement_RemoveElement(t *testing.T) {
+func Test_bjson_RemoveElement(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
@@ -1075,7 +874,204 @@ func Test_jsonElement_RemoveElement(t *testing.T) {
 	}
 }
 
-func Test_jsonElement_EscapeElement(t *testing.T) {
+func Test_bjson_Marshal(t *testing.T) {
+	type fields struct {
+		value interface{}
+	}
+	type args struct {
+		isPretty bool
+		targets  []string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "success - marshal JSON object",
+			fields: fields{value: `{"a": 1, "b": 2}`},
+			args:   args{isPretty: false, targets: []string{"a"}},
+			want:   `1`,
+		},
+		{
+			name:   "success - marshal JSON array",
+			fields: fields{value: `{"arr": [1, 2, 3]}`},
+			args:   args{isPretty: true, targets: []string{"arr"}},
+			want:   "[\n\t1,\n\t2,\n\t3\n]",
+		},
+		// ... (other test cases)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			je, err := NewBJSON(tt.fields.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := je.Marshal(tt.args.isPretty, tt.args.targets...)
+			if tt.wantErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tt.want, string(got))
+			}
+		})
+	}
+}
+
+func Test_bjson_MarshalWrite(t *testing.T) {
+	type fields struct {
+		value interface{}
+	}
+	type args struct {
+		path     string
+		isPretty bool
+		targets  []string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "success - marshal and write JSON object",
+			fields: fields{value: `{"a":1,"b":2}`},
+			args:   args{path: path.Join(os.TempDir(), "test.json"), isPretty: false, targets: []string{"a"}},
+			want:   `1`,
+		},
+		{
+			name:   "success - marshal and write JSON array",
+			fields: fields{value: `{"arr":[1, 2, 3]}`},
+			args:   args{path: path.Join(os.TempDir(), "test.json"), isPretty: true, targets: nil},
+			want:   "{\n\t\"arr\": [\n\t\t1,\n\t\t2,\n\t\t3\n\t]\n}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			je, err := NewBJSON(tt.fields.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = je.MarshalWrite(tt.args.path, tt.args.isPretty, tt.args.targets...)
+			if tt.wantErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+
+				// Read the written file and compare its content
+				data, err := os.ReadFile(tt.args.path)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, tt.want, string(data))
+				os.Remove(tt.args.path) // Clean up the temporary file
+			}
+		})
+	}
+}
+
+func Test_bjson_Unmarshal(t *testing.T) {
+	type fields struct {
+		value interface{}
+	}
+	type args struct {
+		v       any
+		targets []string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "success - string",
+			fields: fields{
+				value: `"test"`,
+			},
+			args: args{
+				v:       "",
+				targets: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "fail - string type not match",
+			fields: fields{
+				value: `"test"`,
+			},
+			args: args{
+				v:       true,
+				targets: nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "fail - %v not found",
+			fields: fields{
+				value: `"test"`,
+			},
+			args: args{
+				v:       "",
+				targets: []string{"a", "b", "c", "d"},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bj, err := NewBJSON(tt.fields.value)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+
+			var got interface{}
+			switch obj := tt.args.v.(type) {
+			case map[string]interface{}:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			case []interface{}:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			case string:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			case bool:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			case float64:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			case nil:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			default:
+				err = bj.Unmarshal(&obj, tt.args.targets...)
+				got = obj
+			}
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			d, err := json.Marshal(got)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+
+			assert.Equal(t, bj.String(), string(d))
+		})
+	}
+}
+
+func Test_bjson_EscapeElement(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
@@ -1158,7 +1154,7 @@ func Test_jsonElement_EscapeElement(t *testing.T) {
 	}
 }
 
-func Test_jsonElement_UnescapeElement(t *testing.T) {
+func Test_bjson_UnescapeElement(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
@@ -1248,123 +1244,29 @@ func Test_jsonElement_UnescapeElement(t *testing.T) {
 	}
 }
 
-func Test_jsonElement_Marshal(t *testing.T) {
-	type fields struct {
-		value interface{}
-	}
-	type args struct {
-		isPretty bool
-		targets  []string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name:   "success - marshal JSON object",
-			fields: fields{value: `{"a": 1, "b": 2}`},
-			args:   args{isPretty: false, targets: []string{"a"}},
-			want:   `1`,
-		},
-		{
-			name:   "success - marshal JSON array",
-			fields: fields{value: `{"arr": [1, 2, 3]}`},
-			args:   args{isPretty: true, targets: []string{"arr"}},
-			want:   "[\n\t1,\n\t2,\n\t3\n]",
-		},
-		// ... (other test cases)
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewBJSON(tt.fields.value)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			got, err := je.Marshal(tt.args.isPretty, tt.args.targets...)
-			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-				assert.Equal(t, tt.want, string(got))
-			}
-		})
-	}
-}
-
-func Test_jsonElement_MarshalWrite(t *testing.T) {
-	type fields struct {
-		value interface{}
-	}
-	type args struct {
-		path     string
-		isPretty bool
-		targets  []string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name:   "success - marshal and write JSON object",
-			fields: fields{value: `{"a":1,"b":2}`},
-			args:   args{path: path.Join(os.TempDir(), "test.json"), isPretty: false, targets: []string{"a"}},
-			want:   `{"a":1,"b":2}`,
-		},
-		{
-			name:   "success - marshal and write JSON array",
-			fields: fields{value: `{"arr":[1, 2, 3]}`},
-			args:   args{path: path.Join(os.TempDir(), "test.json"), isPretty: true, targets: []string{"arr"}},
-			want:   "{\n\t\"arr\": [\n\t\t1,\n\t\t2,\n\t\t3\n\t]\n}",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewBJSON(tt.fields.value)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			err = je.MarshalWrite(tt.args.path, tt.args.isPretty, tt.args.targets...)
-			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-
-				// Read the written file and compare its content
-				data, err := os.ReadFile(tt.args.path)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				assert.Equal(t, tt.want, string(data))
-				os.Remove(tt.args.path) // Clean up the temporary file
-			}
-		})
-	}
-}
-
-func Test_jsonElement_Copy(t *testing.T) {
+func Test_bjson_Len(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
 	tests := []struct {
 		name   string
 		fields fields
+		want   int
 	}{
 		{
-			name:   "success - copy JSON object",
-			fields: fields{value: `{"a":1,"b":2}`},
+			name:   "success - from json object",
+			fields: fields{value: `{"a": 1, "b": 2}`},
+			want:   2,
 		},
 		{
-			name:   "success - copy JSON array",
-			fields: fields{value: `{"a":1,"arr":[1, 2, 3]}`},
+			name:   "success - from json array",
+			fields: fields{value: `[1, 2, 3]`},
+			want:   3,
+		},
+		{
+			name:   "fail - from string",
+			fields: fields{value: `"hello"`},
+			want:   0,
 		},
 	}
 	for _, tt := range tests {
@@ -1374,16 +1276,69 @@ func Test_jsonElement_Copy(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			copyJe := je.Copy()
-
-			// Modify the original and verify that the copy remains unchanged
-			je.SetElement(42, "a")
-			assert.NotEqual(t, je.String(), copyJe.String())
+			assert.Equal(t, tt.want, je.Len())
 		})
 	}
 }
 
-func Test_jsonElement_String(t *testing.T) {
+func Test_bjson_Copy(t *testing.T) {
+	type fields struct {
+		value interface{}
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name:    "success - copy JSON object",
+			fields:  fields{value: `{"a":1,"b":2}`},
+			wantErr: false,
+		},
+		{
+			name:    "success - copy JSON array",
+			fields:  fields{value: `{"a":1,"arr":[1, 2, 3]}`},
+			wantErr: false,
+		},
+		{
+			name:    "fail - corner case: copy invalid data",
+			fields:  fields{value: func() {}},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var je BJSON
+			if tt.wantErr {
+				je = &bjson{value: tt.fields.value}
+			} else {
+				var err error
+				je, err = NewBJSON(tt.fields.value)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := je.Copy()
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, got)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, je.String(), got.String())
+
+			// modify the original and verify that the copy remains unchanged
+			if err = je.SetElement(42, "a"); err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			assert.NotEqual(t, je.String(), got.String())
+		})
+	}
+}
+
+func Test_bjson_String(t *testing.T) {
 	type fields struct {
 		value interface{}
 	}
@@ -1412,39 +1367,6 @@ func Test_jsonElement_String(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, je.String())
-		})
-	}
-}
-
-func Test_jsonElement_Len(t *testing.T) {
-	type fields struct {
-		value interface{}
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   int
-	}{
-		{
-			name:   "success - JSON object",
-			fields: fields{value: `{"a": 1, "b": 2}`},
-			want:   2,
-		},
-		{
-			name:   "success - JSON array",
-			fields: fields{value: `[1, 2, 3]`},
-			want:   3,
-		},
-		// ... (other test cases)
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			je, err := NewBJSON(tt.fields.value)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			assert.Equal(t, tt.want, je.Len())
 		})
 	}
 }

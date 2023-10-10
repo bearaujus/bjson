@@ -7,24 +7,24 @@ import (
 	"strconv"
 )
 
-func (je *bjson) AddElement(value interface{}, targets ...string) (err error) {
-	return je.updateElement(updateOptionAdd, value, targets...)
+func (bj *bjson) AddElement(value interface{}, targets ...string) (err error) {
+	return bj.updateElement(uoAdd, value, newTracer(targets))
 }
 
-func (je *bjson) GetElement(targets ...string) (BJSON, error) {
-	return je.getElement(targets...)
+func (bj *bjson) GetElement(targets ...string) (BJSON, error) {
+	return bj.getElement(newTracer(targets))
 }
 
-func (je *bjson) SetElement(value interface{}, targets ...string) (err error) {
-	return je.updateElement(updateOptionSet, value, targets...)
+func (bj *bjson) SetElement(value interface{}, targets ...string) (err error) {
+	return bj.updateElement(uoSet, value, newTracer(targets))
 }
 
-func (je *bjson) RemoveElement(targets ...string) (err error) {
-	return je.updateElement(updateOptionRemove, nil, targets...)
+func (bj *bjson) RemoveElement(targets ...string) (err error) {
+	return bj.updateElement(uoRemove, nil, newTracer(targets))
 }
 
-func (je *bjson) EscapeElement(targets ...string) error {
-	element, err := je.getElement(targets...)
+func (bj *bjson) EscapeElement(targets ...string) error {
+	element, err := bj.getElement(newTracer(targets))
 	if err != nil {
 		return err
 	}
@@ -40,19 +40,19 @@ func (je *bjson) EscapeElement(targets ...string) error {
 	}
 
 	var nVal interface{}
-	if err := json.Unmarshal([]byte(quotedValue), &nVal); err != nil {
+	if err = json.Unmarshal([]byte(quotedValue), &nVal); err != nil {
 		return err
 	}
 
-	if err := je.SetElement(nVal, targets...); err != nil {
+	if err = bj.SetElement(nVal, targets...); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (je *bjson) UnescapeElement(targets ...string) error {
-	element, err := je.getElement(targets...)
+func (bj *bjson) UnescapeElement(targets ...string) error {
+	element, err := bj.getElement(newTracer(targets))
 	if err != nil {
 		return err
 	}
@@ -72,43 +72,40 @@ func (je *bjson) UnescapeElement(targets ...string) error {
 		return err
 	}
 
-	if err = je.SetElement(nVal, targets...); err != nil {
+	if err = bj.SetElement(nVal, targets...); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (je *bjson) Copy() BJSON {
-	nVal, _ := deepCopy(je.value)
-	return &bjson{value: nVal}
-}
-
-func (je *bjson) String() string {
-	ret, _ := je.Marshal(false)
-	return string(ret)
-}
-
-func (je *bjson) Value() []byte {
-	data, _ := json.Marshal(je.value)
-	return data
-}
-
-func (je *bjson) Len() int {
-	switch valObj := je.value.(type) {
+func (bj *bjson) Len() int {
+	switch valObj := bj.value.(type) {
 	case map[string]interface{}:
 		return len(valObj)
 	case []interface{}:
-		return len(valObj)
-	case string:
 		return len(valObj)
 	}
 
 	return 0
 }
 
-func (je *bjson) Marshal(isPretty bool, targets ...string) ([]byte, error) {
-	sel, err := je.getElement(targets...)
+func (bj *bjson) Copy() (BJSON, error) {
+	nVal, err := deepCopy(bj.value)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bjson{value: nVal}, nil
+}
+
+func (bj *bjson) String() string {
+	ret, _ := bj.Marshal(false)
+	return string(ret)
+}
+
+func (bj *bjson) Marshal(isPretty bool, targets ...string) ([]byte, error) {
+	sel, err := bj.getElement(newTracer(targets))
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +117,8 @@ func (je *bjson) Marshal(isPretty bool, targets ...string) ([]byte, error) {
 	return json.Marshal(sel.value)
 }
 
-func (je *bjson) MarshalWrite(path string, isPretty bool, targets ...string) error {
-	data, err := je.Marshal(isPretty)
+func (bj *bjson) MarshalWrite(path string, isPretty bool, targets ...string) error {
+	data, err := bj.Marshal(isPretty, targets...)
 	if err != nil {
 		return err
 	}
@@ -129,224 +126,207 @@ func (je *bjson) MarshalWrite(path string, isPretty bool, targets ...string) err
 	return os.WriteFile(path, data, os.ModePerm)
 }
 
-type JSONPath []string
-
-func (path JSONPath) String() string {
-	return "[" + strconv.QuoteToASCII(path[0]) + "]"
-}
-
-func (path JSONPath) Append(target string) JSONPath {
-	return append(path, target)
-}
-
-func (path JSONPath) AppendIndex(index int) JSONPath {
-	return append(path, strconv.Itoa(index))
-}
-
-func (je *bjson) getElement(targets ...string) (*bjson, error) {
-	var (
-		selector = je.value
-		path     = JSONPath{}
-		err      error
-	)
-
-	for _, target := range targets {
-		path = path.Append(target)
-
-		switch obj := selector.(type) {
-		case map[string]interface{}:
-			selector, err = je.getElementFromMap(obj, target, path.String())
-		case []interface{}:
-			selector, err = je.getElementFromArray(obj, target, path.String())
-		default:
-			err = fmt.Errorf("element %v is not found", path)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &bjson{value: selector}, nil
-}
-
-func (je *bjson) getElementFromMap(obj map[string]interface{}, target, location string) (interface{}, error) {
-	selector, ok := obj[target]
-	if !ok {
-		return nil, fmt.Errorf("element %v is not found", location)
-	}
-	return selector, nil
-}
-
-func (je *bjson) getElementFromArray(arr []interface{}, target, location string) (interface{}, error) {
-	idx, err := strconv.Atoi(target)
-	if err != nil || idx < 0 || idx >= len(arr) {
-		return nil, fmt.Errorf("element %v is not valid index for JSON array", location)
-	}
-	return arr[idx], nil
-}
-
-type updateOption int
-
-const (
-	updateOptionAdd    updateOption = iota
-	updateOptionSet    updateOption = iota
-	updateOptionRemove updateOption = iota
-)
-
-func (je *bjson) updateElement(option updateOption, value interface{}, targets ...string) error {
-	if value != nil {
-		nValue, err := deepCopy(value)
-		if err != nil {
-			return err
-		}
-		value = nValue
-	}
-
-	if len(targets) == 0 {
-		return je.updateTopLevelElement(option, value)
-	}
-
-	// Append a dummy element
-	targets = append(targets, "")
-
-	nValue, err := je.recursiveUpdateElement(option, je.value, value, targets[0], "JSON", targets[1:]...)
+func (bj *bjson) Unmarshal(v any, targets ...string) error {
+	d, err := bj.Marshal(false, targets...)
 	if err != nil {
 		return err
 	}
 
-	je.value = nValue
+	return json.Unmarshal(d, v)
+}
+
+func (bj *bjson) getElement(tc *tracer) (*bjson, error) {
+	sel := bj.value
+	for tc.next() {
+		switch obj := sel.(type) {
+		case map[string]interface{}:
+			var ok bool
+			sel, ok = obj[tc.currTarget()]
+			if !ok {
+				return nil, fmt.Errorf("element %v is not found at %v", tc.currTarget(), tc.passedPath())
+			}
+
+		case []interface{}:
+			idx, err := strconv.Atoi(tc.currTarget())
+			if err != nil {
+				return nil, fmt.Errorf("element %v is not valid index (int) for JSON array. %v", tc.passedPath(), err)
+			}
+
+			if idx < 0 || idx > len(obj)-1 {
+				return nil, fmt.Errorf("invalid index for json array at %v", tc.passedPath())
+			}
+
+			sel = obj[idx]
+
+		default:
+			return nil, fmt.Errorf("element %v is not found. target: %v", tc.passedPath(), tc.originPath())
+		}
+	}
+
+	return &bjson{value: sel}, nil
+}
+
+func (bj *bjson) updateElement(opt updateOption, value interface{}, tc *tracer) error {
+	if value != nil {
+		var err error
+		value, err = deepCopy(value)
+		if err != nil {
+			return err
+		}
+	}
+
+	if tc.isTail() {
+		return bj.updateTopLevelElement(opt, value)
+	}
+
+	nValue, err := bj.recursiveUpdateElement(opt, bj.value, value, tc)
+	if err != nil {
+		return err
+	}
+
+	bj.value = nValue
 	return nil
 }
 
-func (je *bjson) updateTopLevelElement(option updateOption, value interface{}) error {
-	if parentObj, ok := je.value.([]interface{}); ok && option == updateOptionAdd {
-		je.value = append(parentObj, value)
+func (bj *bjson) updateTopLevelElement(opt updateOption, value interface{}) error {
+	switch opt {
+	case uoAdd:
+		if parentObj, ok := bj.value.([]interface{}); ok {
+			bj.value = append(parentObj, value)
+			return nil
+		}
+
+	case uoSet:
+		bj.value = value
 		return nil
 	}
 
-	if option == updateOptionSet {
-		je.value = value
-		return nil
-	}
-
-	return fmt.Errorf("invalid operation for %T", je.value)
+	return fmt.Errorf("cannot %v top level element with type %T", opt, bj.value)
 }
 
-func (je *bjson) recursiveUpdateElement(option updateOption, parent interface{}, value interface{}, currentTarget string, location string, remainingTargets ...string) (interface{}, error) {
-	isTail := len(remainingTargets) == 1
-	switch parentObj := parent.(type) {
-	case map[string]interface{}:
-		location += fmt.Sprintf(`["%v"]`, currentTarget)
+func (bj *bjson) recursiveUpdateElement(opt updateOption, parent interface{}, value interface{}, tc *tracer) (interface{}, error) {
+	for tc.next() {
+		target := tc.currTarget()
+		switch obj := parent.(type) {
+		case map[string]interface{}:
+			child, isExist := obj[target]
+			if !isExist && (opt == uoSet || opt == uoRemove) {
+				return nil, fmt.Errorf("element %v is not found. target: %v", tc.passedPath(), tc.originPath())
+			}
 
-		child, isExist := parentObj[currentTarget]
-		if !isExist && (option == updateOptionSet || option == updateOptionRemove) {
-			return nil, fmt.Errorf("key at %v is not found", location)
+			if tc.isTail() {
+				return bj.updateTailMapElement(opt, obj, value, child, isExist, tc)
+			}
+
+			updatedChild, err := bj.recursiveUpdateElement(opt, child, value, tc)
+			if err != nil {
+				return nil, err
+			}
+
+			obj[target] = updatedChild
+
+		case []interface{}:
+			idx, err := strconv.Atoi(target)
+			if err != nil {
+				return nil, fmt.Errorf("element %v is not valid index (int) for JSON array. %v", tc.passedPath(), err)
+			}
+
+			if idx < 0 || idx > len(obj)-1 {
+				return nil, fmt.Errorf("invalid index for json array at %v", tc.passedPath())
+			}
+
+			if tc.isTail() {
+				return bj.updateTailArrayElement(opt, obj, value, idx, tc)
+			}
+
+			obj[idx], err = bj.recursiveUpdateElement(opt, obj[idx], value, tc)
+			if err != nil {
+				return nil, err
+			}
+
+		case nil:
+			return nil, fmt.Errorf("element %v is not found. target: %v", tc.passedPath(), tc.originPath())
+
+		default:
+			return nil, fmt.Errorf("cannot %v element at %v. operation is not allowed for element %T. target: %v", opt, tc.passedPath(), obj, tc.originPath())
 		}
-
-		if isTail {
-			return je.updateTailMapElement(option, parentObj, value, currentTarget, location, child, isExist)
-		}
-
-		updatedChild, err := je.recursiveUpdateElement(option, child, value, remainingTargets[0], location, remainingTargets[1:]...)
-		if err != nil {
-			return nil, err
-		}
-
-		parentObj[currentTarget] = updatedChild
-		return parent, nil
-
-	case []interface{}:
-		location += fmt.Sprintf("[%v]", currentTarget)
-
-		idx, err := strconv.Atoi(currentTarget)
-		if err != nil {
-			return nil, fmt.Errorf("element %v is not valid index (int) for JSON array. %v", location, err)
-		}
-
-		if len(parentObj) == 0 || idx >= len(parentObj) {
-			return nil, fmt.Errorf("invalid index for json array at %v", location)
-		}
-
-		if isTail {
-			return je.updateTailArrayElement(option, parentObj, value, idx, location)
-		}
-
-		parentObj[idx], err = je.recursiveUpdateElement(option, parentObj[idx], value, remainingTargets[0], location, remainingTargets[1:]...)
-		if err != nil {
-			return nil, err
-		}
-
-		return parentObj, nil
-
-	default:
-		return nil, fmt.Errorf("element '%v' is not found at '%v'", currentTarget, location)
 	}
+
+	return parent, nil
 }
 
-func (je *bjson) updateTailMapElement(option updateOption, parentObj map[string]interface{}, value interface{}, currentTarget string, location string, child interface{}, isExist bool) (interface{}, error) {
-	if arr, ok := child.([]interface{}); (option == updateOptionAdd || option == updateOptionSet) && ok {
-		if _, ok := parentObj[currentTarget]; ok && option == updateOptionAdd {
-			parentObj[currentTarget] = append(arr, value)
-			return parentObj, nil
+func (bj *bjson) updateTailMapElement(opt updateOption, obj map[string]interface{}, value interface{}, child interface{}, isExist bool, tc *tracer) (interface{}, error) {
+	arr, isArr := child.([]interface{})
+	switch opt {
+	case uoAdd:
+		if isArr {
+			obj[tc.currTarget()] = append(arr, value)
+			break
 		}
+
+		if isExist {
+			return nil, fmt.Errorf("key %v is already exist", tc.passedPath())
+		}
+
+		fallthrough
+
+	case uoSet:
+		obj[tc.currTarget()] = value
+
+	case uoRemove:
+		delete(obj, tc.currTarget())
 	}
 
-	if isExist && option == updateOptionAdd {
-		return nil, fmt.Errorf("key at %v is already exists", location)
+	return obj, nil
+}
+
+func (bj *bjson) updateTailArrayElement(opt updateOption, parentObj []interface{}, value interface{}, idx int, tc *tracer) (interface{}, error) {
+	child := parentObj[idx]
+	switch opt {
+	case uoAdd:
+		arr, ok := child.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("cannot add element at: %v", tc.passedPath())
+		}
+
+		parentObj[idx] = append(arr, value)
+
+	case uoSet:
+		parentObj[idx] = value
+
+	case uoRemove:
+		parentObj = append(parentObj[:idx], parentObj[idx+1:]...)
 	}
 
-	if option == updateOptionRemove {
-		delete(parentObj, currentTarget)
-		return parentObj, nil
-	}
-
-	parentObj[currentTarget] = value
 	return parentObj, nil
 }
 
-func (je *bjson) updateTailArrayElement(option updateOption, parentObj []interface{}, value interface{}, idx int, location string) (interface{}, error) {
-	child := parentObj[idx]
-	if arr, ok := child.([]interface{}); option == updateOptionAdd && ok {
-		switch option {
-		case updateOptionAdd:
-			parentObj[idx] = append(arr, value)
-			return parentObj, nil
-		}
-	}
+func deepCopy(data interface{}) (interface{}, error) {
+	var (
+		ret       interface{}
+		dataBytes []byte
+		typeBytes = false
+	)
 
-	if option == updateOptionSet {
-		parentObj[idx] = value
-		return parentObj, nil
-	}
+	switch obj := data.(type) {
+	case *bjson:
+		data = obj.value
+		return deepCopy(data)
 
-	if option == updateOptionRemove {
-		parentObj = append(parentObj[:idx], parentObj[idx+1:]...)
-		return parentObj, nil
-	}
-
-	return nil, fmt.Errorf("cannot update element at: %v", location)
-}
-
-func deepCopy(value interface{}) (interface{}, error) {
-	var ret interface{}
-	switch v := value.(type) {
 	case []byte:
-		if err := json.Unmarshal(v, &ret); err != nil {
+		typeBytes = true
+		dataBytes = obj
+	}
+
+	if !typeBytes {
+		var err error
+		dataBytes, err = json.Marshal(data)
+		if err != nil {
 			return nil, err
 		}
-		return ret, nil
-
-	case *bjson:
-		value = v.value
 	}
 
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = json.Unmarshal(data, &ret); err != nil {
+	if err := json.Unmarshal(dataBytes, &ret); err != nil {
 		return nil, err
 	}
 

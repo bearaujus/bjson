@@ -6,9 +6,9 @@ test-all:
 .PHONY: test
 test:
 	go clean -testcache
-	go test ./... --cover
+	go test -v ./... --cover
 
 .PHONY: test-race
 test-race:
 	go clean -testcache
-	go test ./... --cover --race
+	go test -v ./... --cover --race

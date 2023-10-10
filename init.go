@@ -17,26 +17,28 @@ type BJSON interface {
 
 	Marshal(isPretty bool, targets ...string) ([]byte, error)
 	MarshalWrite(path string, isPretty bool, targets ...string) error
+	Unmarshal(v any, targets ...string) error
+
 	EscapeElement(targets ...string) error
 	UnescapeElement(targets ...string) error
-	Copy() BJSON
 
-	String() string
 	Len() int
+	Copy() (BJSON, error)
+	String() string
 }
 
 func NewBJSON(data interface{}) (BJSON, error) {
-	switch d := data.(type) {
-	case string:
-		data = []byte(d)
+	dataString, ok := data.(string)
+	if ok {
+		data = []byte(dataString)
 	}
 
-	val, err := deepCopy(data)
+	bjValue, err := deepCopy(data)
 	if err != nil {
 		return nil, err
 	}
 
-	return &bjson{value: val}, nil
+	return &bjson{value: bjValue}, nil
 }
 
 func NewBJSONFromFile(path string) (BJSON, error) {
