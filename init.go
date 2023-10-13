@@ -1,6 +1,8 @@
 package bjson
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -48,4 +50,28 @@ func NewBJSONFromFile(path string) (BJSON, error) {
 	}
 
 	return NewBJSON(data)
+}
+
+func MarshalWrite(path string, v interface{}, isPretty bool) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	if isPretty {
+		buff := bytes.NewBuffer(nil)
+		_ = json.Indent(buff, data, "", "\t")
+		data = buff.Bytes()
+	}
+
+	return os.WriteFile(path, data, os.ModePerm)
+}
+
+func UnmarshalRead(path string, v interface{}) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, v)
 }

@@ -14,6 +14,8 @@ It empowers you to escape and unescape individual JSON elements and perform CRUD
 
 - **CRUD**: BJSON provides functions for creating, reading, updating, and deleting JSON elements. This makes it easy to manipulate JSON data in Go.
 
+- **IO**: BJSON provides function for unmarshal read and marshal write. This can be useful when your usecase is to handle many IO operations
+
 ## Installation
 
 To install BJSON, you can run the following command:

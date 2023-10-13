@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 )
 
@@ -205,6 +206,122 @@ func TestNewJSONElementFromFile(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, strGot)
+		})
+	}
+}
+
+func TestMarshalWrite(t *testing.T) {
+	type args struct {
+		path     string
+		v        interface{}
+		isPretty bool
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "success",
+			args: args{
+				path:     filepath.Join(os.TempDir(), "test1.json"),
+				v:        map[string]interface{}{"test": "test"},
+				isPretty: false,
+			},
+			want:    `{"test":"test"}`,
+			wantErr: false,
+		},
+		{
+			name: "success pretty",
+			args: args{
+				path:     filepath.Join(os.TempDir(), "test2.json"),
+				v:        map[string]interface{}{"test": "test"},
+				isPretty: true,
+			},
+			want: `{
+	"test": "test"
+}`,
+			wantErr: false,
+		},
+		{
+			name: "fail - error marshall",
+			args: args{
+				path:     filepath.Join(os.TempDir(), "test3.json"),
+				v:        func() {},
+				isPretty: true,
+			},
+			want:    ``,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := MarshalWrite(tt.args.path, tt.args.v, tt.args.isPretty)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			got, err := os.ReadFile(tt.args.path)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			assert.Equal(t, tt.want, string(got))
+		})
+	}
+}
+
+func TestUnmarshalRead(t *testing.T) {
+	mockFilePath := filepath.Join(os.TempDir(), "test2.json")
+	if err := MarshalWrite(mockFilePath, map[string]interface{}{"test": "test"}, false); err != nil {
+		assert.FailNow(t, err.Error())
+	}
+
+	type args struct {
+		path string
+		v    interface{}
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    interface{}
+		wantErr bool
+	}{
+		{
+			name: "success",
+			args: args{
+				path: mockFilePath,
+				v:    map[string]interface{}{},
+			},
+			want:    `{"test":"test"}`,
+			wantErr: false,
+		},
+		{
+			name: "fail - file not found",
+			args: args{
+				path: "@%()_@invalid path",
+				v:    map[string]interface{}{},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := UnmarshalRead(tt.args.path, &tt.args.v)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			got, err := os.ReadFile(tt.args.path)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			assert.Equal(t, tt.want, string(got))
 		})
 	}
 }
