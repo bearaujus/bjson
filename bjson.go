@@ -34,14 +34,10 @@ func (bj *bjson) EscapeElement(targets ...string) error {
 		return nil
 	}
 
-	quotedValue := strconv.Quote(elementStr)
-	if err != nil {
-		return fmt.Errorf("element value is not quoted. value: %v", element)
-	}
-
+	elementEsc := strconv.Quote(elementStr)
 	var nVal interface{}
-	if err = json.Unmarshal([]byte(quotedValue), &nVal); err != nil {
-		return err
+	if err = json.Unmarshal([]byte(elementEsc), &nVal); err != nil {
+		return fmt.Errorf("fail to unmarshal element from escaped value: %v. %v", elementEsc, err)
 	}
 
 	if err = bj.SetElement(nVal, targets...); err != nil {
@@ -62,14 +58,14 @@ func (bj *bjson) UnescapeElement(targets ...string) error {
 		return nil
 	}
 
-	unquotedValue, err := strconv.Unquote(elementStr)
+	elementUesc, err := strconv.Unquote(elementStr)
 	if err != nil {
-		return fmt.Errorf("element value is not quoted. value: %v", element)
+		return fmt.Errorf("fail to unescape element. value: %v. %v", elementStr, err)
 	}
 
 	var nVal interface{}
-	if err = json.Unmarshal([]byte(unquotedValue), &nVal); err != nil {
-		return err
+	if err = json.Unmarshal([]byte(elementUesc), &nVal); err != nil {
+		return fmt.Errorf("fail to marshal element from unescaped value: %v. %v", elementUesc, err)
 	}
 
 	if err = bj.SetElement(nVal, targets...); err != nil {
