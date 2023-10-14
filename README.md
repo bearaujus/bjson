@@ -60,7 +60,7 @@ func main() {
 }
 
 ```
-```json
+```text
 {"name":"John Doe","age":25,"occupation":"Software Engineer"}
 ```
 
