@@ -65,6 +65,7 @@ func main() {
 ```
 
 ## TODO
+
 - Add documentation to the code
 - Add more examples to the README.md
 - Improve error handling
