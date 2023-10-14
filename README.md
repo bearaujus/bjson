@@ -14,7 +14,7 @@ BJSON is a Go library that provides a simple way to work with JSON data. It is d
 
 ## Installation
 
-To install BWorker, you can run the following command:
+To install BJSON, you can run the following command:
 
 ```shell
 go get github.com/bearaujus/bjson
@@ -63,6 +63,12 @@ func main() {
 ```json
 {"name":"John Doe","age":25,"occupation":"Software Engineer"}
 ```
+
+## TODO
+- Add documentation to the code
+- Add more examples to the README.md
+- Improve error handling
+- Refactor the code to be simpler
 
 ## License
 
