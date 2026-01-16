@@ -101,3 +101,12 @@ func UnmarshalRead(path string, v interface{}, targets ...string) error {
 
 	return Unmarshal(data, v, targets...)
 }
+
+func UnmarshalReadAndUnwarp[T any](path string, targets ...string) (*T, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return UnmarshalAndUnwarp[T](data, targets...)
+}
