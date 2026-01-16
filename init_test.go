@@ -395,3 +395,31 @@ func TestUnmarshalRead(t *testing.T) {
 		})
 	}
 }
+
+func TestUnmarshalAndUnwarp(t *testing.T) {
+	type Result struct {
+		ID string `json:"id"`
+		N  int    `json:"n"`
+	}
+	t.Run("success", func(t *testing.T) {
+		got, err := UnmarshalAndUnwarp[Result](`{"id":"a","n":5}`)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
+		assert.Equal(t, &Result{"a", 5}, got)
+	})
+	t.Run("fail - invalid generic type input", func(t *testing.T) {
+		got, err := UnmarshalAndUnwarp[*Result](`{"id":"a","n":5}`)
+		if err == nil {
+			assert.FailNow(t, err.Error())
+		}
+		assert.Nil(t, got)
+	})
+	t.Run("fail - fail to unmarshal", func(t *testing.T) {
+		got, err := UnmarshalAndUnwarp[Result](`{"id":"a","n":5}`, "not_exist_key")
+		if err == nil {
+			assert.FailNow(t, err.Error())
+		}
+		assert.Nil(t, got)
+	})
+}
