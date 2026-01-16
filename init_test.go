@@ -215,6 +215,7 @@ func TestMarshalWrite(t *testing.T) {
 		path     string
 		v        interface{}
 		isPretty bool
+		targets  []string
 	}
 	tests := []struct {
 		name    string
@@ -228,6 +229,7 @@ func TestMarshalWrite(t *testing.T) {
 				path:     filepath.Join(os.TempDir(), "test1.json"),
 				v:        map[string]interface{}{"test": "test"},
 				isPretty: false,
+				targets:  nil,
 			},
 			want:    `{"test":"test"}`,
 			wantErr: false,
@@ -238,6 +240,7 @@ func TestMarshalWrite(t *testing.T) {
 				path:     filepath.Join(os.TempDir(), "test2.json"),
 				v:        map[string]interface{}{"test": "test"},
 				isPretty: true,
+				targets:  nil,
 			},
 			want: `{
 	"test": "test"
@@ -245,11 +248,36 @@ func TestMarshalWrite(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail - error marshall",
+			name: "success with targets",
 			args: args{
 				path:     filepath.Join(os.TempDir(), "test3.json"),
+				v:        map[string]interface{}{"k1": "test", "k2": map[string]interface{}{"k3": "test"}},
+				isPretty: true,
+				targets:  []string{"k2"},
+			},
+			want: `{
+	"k3": "test"
+}`,
+			wantErr: false,
+		},
+		{
+			name: "success with last targets",
+			args: args{
+				path:     filepath.Join(os.TempDir(), "test3.json"),
+				v:        map[string]interface{}{"k1": "test", "k2": map[string]interface{}{"k3": "test"}},
+				isPretty: true,
+				targets:  []string{"k2", "k3"},
+			},
+			want:    `"test"`,
+			wantErr: false,
+		},
+		{
+			name: "fail - error marshall",
+			args: args{
+				path:     filepath.Join(os.TempDir(), "test4.json"),
 				v:        func() {},
 				isPretty: true,
+				targets:  nil,
 			},
 			want:    ``,
 			wantErr: true,
@@ -257,7 +285,7 @@ func TestMarshalWrite(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := MarshalWrite(tt.args.path, tt.args.v, tt.args.isPretty)
+			err := MarshalWrite(tt.args.path, tt.args.v, tt.args.isPretty, tt.args.targets...)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -274,14 +302,28 @@ func TestMarshalWrite(t *testing.T) {
 }
 
 func TestUnmarshalRead(t *testing.T) {
-	mockFilePath := filepath.Join(os.TempDir(), "test2.json")
-	if err := MarshalWrite(mockFilePath, map[string]interface{}{"test": "test"}, false); err != nil {
+	validMockFilePath := filepath.Join(os.TempDir(), "TestUnmarshalRead_valid.json")
+	if err := MarshalWrite(validMockFilePath, map[string]interface{}{"test": "test"}, false); err != nil {
 		assert.FailNow(t, err.Error())
 	}
+	defer os.Remove(validMockFilePath)
+
+	validMockFilePath2 := filepath.Join(os.TempDir(), "TestUnmarshalRead_valid_2.json")
+	if err := MarshalWrite(validMockFilePath2, map[string]interface{}{"k1": "test", "k2": map[string]interface{}{"k3": "test"}}, false); err != nil {
+		assert.FailNow(t, err.Error())
+	}
+	defer os.Remove(validMockFilePath2)
+
+	invalidMockFilePath := filepath.Join(os.TempDir(), "TestUnmarshalRead_invalid.json")
+	if err := os.WriteFile(invalidMockFilePath, []byte("invalid json"), os.ModePerm); err != nil {
+		assert.FailNow(t, err.Error())
+	}
+	defer os.Remove(invalidMockFilePath)
 
 	type args struct {
-		path string
-		v    interface{}
+		path    string
+		v       interface{}
+		targets []string
 	}
 	tests := []struct {
 		name    string
@@ -292,17 +334,49 @@ func TestUnmarshalRead(t *testing.T) {
 		{
 			name: "success",
 			args: args{
-				path: mockFilePath,
-				v:    map[string]interface{}{},
+				path:    validMockFilePath,
+				v:       map[string]interface{}{},
+				targets: nil,
 			},
-			want:    `{"test":"test"}`,
+			want:    map[string]interface{}{"test": "test"},
 			wantErr: false,
+		},
+		{
+			name: "success with targets",
+			args: args{
+				path:    validMockFilePath2,
+				v:       map[string]interface{}{},
+				targets: []string{"k2"},
+			},
+			want:    map[string]interface{}{"k3": "test"},
+			wantErr: false,
+		},
+		{
+			name: "success with last targets",
+			args: args{
+				path:    validMockFilePath2,
+				v:       "",
+				targets: []string{"k2", "k3"},
+			},
+			want:    `test`,
+			wantErr: false,
+		},
+		{
+			name: "fail - file is not valid json",
+			args: args{
+				path:    invalidMockFilePath,
+				v:       map[string]interface{}{},
+				targets: nil,
+			},
+			want:    nil,
+			wantErr: true,
 		},
 		{
 			name: "fail - file not found",
 			args: args{
-				path: "@%()_@invalid path",
-				v:    map[string]interface{}{},
+				path:    "@%()_@invalid path",
+				v:       map[string]interface{}{},
+				targets: nil,
 			},
 			want:    nil,
 			wantErr: true,
@@ -310,18 +384,14 @@ func TestUnmarshalRead(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := UnmarshalRead(tt.args.path, &tt.args.v)
+			err := UnmarshalRead(tt.args.path, &tt.args.v, tt.args.targets...)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 
 			assert.NoError(t, err)
-			got, err := os.ReadFile(tt.args.path)
-			if err != nil {
-				assert.FailNow(t, err.Error())
-			}
-			assert.Equal(t, tt.want, string(got))
+			assert.Equal(t, tt.want, tt.args.v)
 		})
 	}
 }
