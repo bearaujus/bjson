@@ -406,17 +406,24 @@ func TestUnmarshalAndUnwarp(t *testing.T) {
 		if err != nil {
 			assert.FailNow(t, err.Error())
 		}
+		assert.Equal(t, Result{"a", 5}, got)
+	})
+	t.Run("success ptr type", func(t *testing.T) {
+		got, err := UnmarshalAndUnwarp[*Result](`{"id":"a","n":5}`)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
 		assert.Equal(t, &Result{"a", 5}, got)
 	})
-	t.Run("fail - invalid generic type input", func(t *testing.T) {
-		got, err := UnmarshalAndUnwarp[*Result](`{"id":"a","n":5}`)
+	t.Run("fail - fail to unmarshal with not exist key", func(t *testing.T) {
+		got, err := UnmarshalAndUnwarp[Result](`{"id":"a","n":5}`, "not_exist_key")
 		if err == nil {
 			assert.FailNow(t, err.Error())
 		}
-		assert.Nil(t, got)
+		assert.Equal(t, Result{"", 0}, got)
 	})
-	t.Run("fail - fail to unmarshal", func(t *testing.T) {
-		got, err := UnmarshalAndUnwarp[Result](`{"id":"a","n":5}`, "not_exist_key")
+	t.Run("fail - fail to unmarshal not exist key ptr", func(t *testing.T) {
+		got, err := UnmarshalAndUnwarp[*Result](`{"id":"a","n":5}`, "not_exist_key")
 		if err == nil {
 			assert.FailNow(t, err.Error())
 		}
