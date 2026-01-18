@@ -3,7 +3,6 @@ package bjson
 import (
 	"fmt"
 	"os"
-	"reflect"
 )
 
 type bjson struct {
@@ -69,19 +68,15 @@ func Unmarshal(data any, v any, targets ...string) error {
 	return bj.Unmarshal(&v, targets...)
 }
 
-func UnmarshalAndUnwarp[T any](data any, targets ...string) (*T, error) {
+func UnmarshalAndUnwarp[T any](data any, targets ...string) (T, error) {
 	var t T
 
-	rv := reflect.ValueOf(t)
-	if rv.Kind() == reflect.Pointer {
-		return nil, fmt.Errorf("T must be a non pointer object. retrieved T type: %T", t)
-	}
-
 	if err := Unmarshal(data, &t, targets...); err != nil {
-		return nil, err
+		var te T
+		return te, err
 	}
 
-	return &t, nil
+	return t, nil
 }
 
 func MarshalWrite(path string, v interface{}, isPretty bool, targets ...string) error {
@@ -102,10 +97,11 @@ func UnmarshalRead(path string, v interface{}, targets ...string) error {
 	return Unmarshal(data, v, targets...)
 }
 
-func UnmarshalReadAndUnwarp[T any](path string, targets ...string) (*T, error) {
+func UnmarshalReadAndUnwarp[T any](path string, targets ...string) (T, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		var te T
+		return te, err
 	}
 
 	return UnmarshalAndUnwarp[T](data, targets...)
